@@ -20,25 +20,48 @@ Author:
 import numpy as np
 import pandas as pd
 import glob
+import os
 
 ###########################################################
 ### df= PrepSPY(dtArg)
 def PrepSPY(dtArg):
-    """
-    Purpose:
-        Read the data on the symbols of this group
+    sGlob = 'data/Price*_all_*_i0.xlsx'
 
-    Inputs:
-        dtArg   dictionary, settings
+    asF = np.sort(glob.glob(sGlob))
 
-    Return value:
-        df      dataframe, prices
-    """
-    sGlob= f'data/Price*_all_*_i0.xlsx'
-    asF= np.sort(glob.glob(sGlob))
+    lsSymbols = dtArg['symbols'].split()
 
-    # Read the data, best to limit to only the symbols of interest
-    # ... fill in code
+
+
+    dfList = []
+    for f in asF:
+        dfTemp = pd.read_excel(f, header=None)
+        dfTemp.columns = dfTemp.iloc[0].str.strip()  # remove spaces from headers
+        dfTemp = dfTemp.drop(0)
+
+        # Ensure all requested symbols exist in this dfTemp
+        colsToKeep = ['Date'] + [c for c in lsSymbols if c in dfTemp.columns]
+        dfTemp = dfTemp[colsToKeep]
+
+        # Add missing symbols as NaN
+        for sym in lsSymbols:
+            if sym not in dfTemp.columns:
+                dfTemp[sym] = np.nan
+
+        # Reorder columns: Date first, then symbols in lsSymbols order
+        dfTemp = dfTemp[['Date'] + lsSymbols]
+
+        dfList.append(dfTemp)
+
+
+    if dfList:
+        df = pd.concat(dfList).drop_duplicates().sort_values('Date').reset_index(drop=True)
+    else:
+        df = pd.DataFrame()
+    
+    print('#Data points: ' + str(len(df)))
+    df.dropna(inplace=True)
+    print('#Data points after removing nans:' + str(len(df)))
 
     return df
 
@@ -47,8 +70,8 @@ def PrepSPY(dtArg):
 def main():
     # Magic numbers
     dtArg= {
-        'symbols': 'SPX5.L SPY5.P SPY5.MIL',        # Change list of symbols to the symbols of your group
-        'group': 'g0'
+        'symbols': 'SPX5.L SPY5l.AQX SPY5.MIL',        # Change list of symbols to the symbols
+        'group': 'g2'
     }
 
     # Initialisation
@@ -56,9 +79,11 @@ def main():
 
     # Estimation
     df= PrepSPY(dtArg)
+    print(df.head())
 
     # Output
-    sOut= f'output/sp_{dtArg["group"]}.csv.gz'
+    os.makedirs("output", exist_ok=True)
+    sOut= f'output/sp_{dtArg["group"]}.csv'
     df.to_csv(sOut)
 
     print (f'See {df.shape} observations in {sOut}')
